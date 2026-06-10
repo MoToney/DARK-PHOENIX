@@ -7,7 +7,7 @@ import { auth } from "~/server/auth";
 import { db } from "~/server/db";
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-04-30.basil",
+  apiVersion: "2025-08-27.basil",
 });
 
 export type PriceId = "small" | "medium" | "large";

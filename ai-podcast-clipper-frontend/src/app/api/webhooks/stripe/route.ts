@@ -6,7 +6,7 @@ import { env } from "~/env";
 import { db } from "~/server/db";
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-04-30.basil",
+  apiVersion: "2025-08-27.basil",
 });
 
 const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
