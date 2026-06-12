@@ -9,6 +9,9 @@ import { auth } from "~/server/auth";
 import { db } from "~/server/db";
 
 export async function processVideo(uploadedFileId: string) {
+   console.log("processVideo called", uploadedFileId);
+
+
   const uploadedVideo = await db.uploadedFile.findUniqueOrThrow({
     where: {
       id: uploadedFileId,
