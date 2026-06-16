@@ -40,7 +40,7 @@ args = parser.parse_args()
 
 if os.path.isfile(args.pretrainModel) == False: # Download the pretrained model
     Link = "1AbN9fCf9IexMxEKXLQY2KYBlb-IhSEea"
-    cmd = "gdown --id %s -O %s"%(Link, args.pretrainModel)
+    cmd = "gdown %s -O %s" % (Link, args.pretrainModel)
     subprocess.call(cmd, shell=True, stdout=None)
 
 if args.evalCol == True:
@@ -64,7 +64,7 @@ if args.evalCol == True:
 		output = subprocess.call(cmd, shell=True, stdout=None)
 	if os.path.isdir(args.videoFolder + '/col_labels') == False: # Download label
 		link = "1Tto5JBt6NsEOLFRWzyZEeV6kCCddc6wv"
-		cmd = "gdown --id %s -O %s"%(link, args.videoFolder + '/col_labels.tar.gz')
+		cmd = "gdown %s -O %s"%(link, args.videoFolder + '/col_labels.tar.gz')
 		subprocess.call(cmd, shell=True, stdout=None)
 		cmd = "tar -xzvf %s -C %s"%(args.videoFolder + '/col_labels.tar.gz', args.videoFolder)
 		subprocess.call(cmd, shell=True, stdout=None)
