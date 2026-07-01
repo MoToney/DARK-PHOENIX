@@ -4,6 +4,7 @@ import shutil
 import boto3
 import modal
 import yt_dlp
+from botocore.exceptions import ClientError
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -13,22 +14,18 @@ class DownloadYouTubeVideoRequest(BaseModel):
     url: str
     uploadedFileId: str
     userId: str
-    # When true, skip the real yt-dlp download and use a pre-baked sample
-    # file instead. Lets you test FE -> Modal auth -> S3 upload wiring
-    # without depending on yt-dlp/proxy behavior.
     simulate: bool = False
 
 
-# A small, public-domain sample clip baked into the image at build time.
-# Swap this URL for any short mp4 you're happy to have baked into the image.
 SAMPLE_VIDEO_URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
-SAMPLE_VIDEO_PATH = "/opt/sample/sample.mp4"
 
-image = (
+LOCAL_TEST_VIDEO = "./sample.mp4"
+SAMPLE_VIDEO_PATH = "/opt/sample.mp4"
+
+download_image = (
     modal.Image.debian_slim()
     .apt_install("ffmpeg", "curl", "unzip")
     .run_commands(
-        # Install Deno
         "curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh",
         "deno --version",
         f"mkdir -p /opt/sample && curl -fsSL {SAMPLE_VIDEO_URL} -o {SAMPLE_VIDEO_PATH}",
@@ -39,6 +36,7 @@ image = (
         "fastapi",
         "pydantic",
     )
+    .add_local_file(LOCAL_TEST_VIDEO, remote_path=SAMPLE_VIDEO_PATH)
 )
 
 app = modal.App("ai-podcast-clipper")
@@ -53,8 +51,6 @@ auth_scheme = HTTPBearer()
 
 
 def simulated_download() -> str:
-    """Copy the pre-baked sample file to a fresh path and return it,
-    mirroring the shape of a real download() call."""
     dest = "/tmp/simulated_download.mp4"
     shutil.copyfile(SAMPLE_VIDEO_PATH, dest)
     return dest
@@ -77,7 +73,6 @@ def download(url: str, low_quality=True) -> str:
     else:
         ydl_opts["format"] = "bestvideo+bestaudio/best"
 
-
     proxy_url = os.environ.get("PROXY_URL")
     if proxy_url:
         ydl_opts["proxy"] = proxy_url
@@ -91,12 +86,14 @@ def download(url: str, low_quality=True) -> str:
 
     return video_path
 
+
 def get_cookie_path():
     COOKIE_PATH = "/tmp/cookies.txt"
 
     cookie_content = os.environ["COOKIES"]
     with open(COOKIE_PATH, "w") as f:
         f.write(cookie_content)
+
 
 def check():
     output_template = "/tmp/%(title)s.%(ext)s"
@@ -131,7 +128,7 @@ def check():
 
 
 @app.cls(
-    image=image, timeout=900, retries=0, scaledown_window=20,
+    image=download_image, timeout=900, retries=0, scaledown_window=20,
     secrets=[modal.Secret.from_name("ai-podcast-clipper-secret"),
              modal.Secret.from_name("yt-cookies")],
 )
@@ -179,7 +176,23 @@ class YouTubeDownloader:
 
         s3_key = f"{request.uploadedFileId}/original.mp4"
         s3_client = boto3.client("s3")
-        s3_client.upload_file(video_path, os.environ["S3_BUCKET_NAME"], s3_key)
+
+        try:
+            s3_client.upload_file(video_path, os.environ["S3_BUCKET_NAME"], s3_key)
+        except ClientError as e:
+            raise HTTPException(status_code=502, detail=f"S3 upload failed: {e}")
+
+        try:
+            head = s3_client.head_object(Bucket=os.environ["S3_BUCKET_NAME"], Key=s3_key)
+        except ClientError as e:
+            raise HTTPException(status_code=502, detail=f"Upload verification failed: {e}")
+
+        local_size = os.path.getsize(video_path)
+        if head["ContentLength"] != local_size:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Size mismatch: local={local_size} s3={head['ContentLength']}"
+            )
 
         return {
             "message": "download complete",
@@ -190,8 +203,24 @@ class YouTubeDownloader:
 
 @app.local_entrypoint()
 def main():
-    downloader = YouTubeDownloader()
+    import requests
 
-    result = downloader.test_download.remote(SAMPLE_VIDEO_URL)
+    web_url = "https://motoney--ai-podcast-clipper-youtubedownloader-downlo-0fdce6-dev.modal.run"
+
+    payload = {
+        "url": SAMPLE_VIDEO_URL,
+        "uploadedFileId": "1",
+        "userId": "2",
+        "simulate": True
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer UwnV0dN12dV6hkRfnNkI"
+    }
+
+    response = requests.post(web_url, json=payload,
+                             headers=headers)
+    response.raise_for_status()
+    result = response.json()
     print(result)
-    return result
