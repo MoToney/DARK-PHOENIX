@@ -1,61 +1,125 @@
 "use server";
 
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { env } from "~/env";
-import { auth } from "~/server/auth";
-import { v4 as uuidv4 } from "uuid";
-import { db } from "~/server/db";
+import {PutObjectCommand, S3Client} from "@aws-sdk/client-s3";
+import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
+import {env} from "~/env";
+import {auth} from "~/server/auth";
+import {v4 as uuidv4} from "uuid";
+import {db} from "~/server/db";
+import {SourceType} from "@prisma/client";
+import * as fs from "node:fs";
+
 
 export async function generateUploadUrl(fileInfo: {
-  filename: string;
-  contentType: string;
+    filename: string;
+    contentType: string;
 }): Promise<{
-  success: boolean;
-  signedUrl: string;
-  key: string;
-  uploadedFileId: string;
+    success: boolean;
+    signedUrl: string;
+    key: string;
+    uploadedFileId: string;
 }> {
-  const session = await auth();
-  if (!session) throw new Error("Unauthorized");
+    const session = await auth();
+    if (!session) throw new Error("Unauthorized");
 
-  const s3Client = new S3Client({
-    region: env.AWS_REGION,
-    credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-    },
-  });
+    const s3Client = new S3Client({
+        region: env.AWS_REGION,
+        credentials: {
+            accessKeyId: env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+        },
+    });
 
-  const fileExtension = fileInfo.filename.split(".").pop() ?? "";
+    const fileExtension = fileInfo.filename.split(".").pop() ?? "";
 
-  const uniqueId = uuidv4();
-  const key = `${uniqueId}/original.${fileExtension}`;
+    const uniqueId = uuidv4();
+    const key = `${uniqueId}/original.${fileExtension}`;
 
-  const command = new PutObjectCommand({
-    Bucket: env.S3_BUCKET_NAME,
-    Key: key,
-    ContentType: fileInfo.contentType,
-  });
+    const command = new PutObjectCommand({
+        Bucket: env.S3_BUCKET_NAME,
+        Key: key,
+        ContentType: fileInfo.contentType,
+    });
 
-  const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 });
+    const signedUrl = await getSignedUrl(s3Client, command, {expiresIn: 600});
 
-  const uploadedFileDbRecord = await db.uploadedFile.create({
-    data: {
-      userId: session.user.id,
-      s3Key: key,
-      displayName: fileInfo.filename,
-      uploaded: false,
-    },
-    select: {
-      id: true,
-    },
-  });
+    const uploadedFileDbRecord = await db.uploadedFile.create({
+        data: {
+            userId: session.user.id,
+            sourceType: SourceType.UPLOAD,
+            s3Key: key,
+            displayName: fileInfo.filename,
+            uploaded: false,
+        },
+        select: {
+            id: true,
+        },
+    });
 
-  return {
-    success: true,
-    signedUrl,
-    key,
-    uploadedFileId: uploadedFileDbRecord.id,
-  };
+    return {
+        success: true,
+        signedUrl,
+        key,
+        uploadedFileId: uploadedFileDbRecord.id,
+    };
+}
+
+
+
+export async function uploadLocalFileToS3({
+                                              outputPath,
+                                              displayName,
+                                              sourceUrl,
+                                              youtubeId,
+                                          }: {
+    outputPath: string;
+    displayName: string;
+    sourceUrl: string;
+    youtubeId: string;
+}) {
+    const session = await auth();
+    if (!session) throw new Error("Unauthorized");
+
+    const s3Client = new S3Client({
+        region: env.AWS_REGION,
+        credentials: {
+            accessKeyId: env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+        },
+    });
+
+    const key = `${uuidv4()}/original.mp4`;
+
+    await s3Client.send(
+        new PutObjectCommand({
+            Bucket: env.S3_BUCKET_NAME,
+            Key: key,
+            Body: fs.createReadStream(outputPath),
+            ContentType: "video/mp4",
+        })
+    );
+
+    const uploadedFileDbRecord = await db.uploadedFile.create({
+        data: {
+            userId: session.user.id,
+            sourceType: SourceType.YOUTUBE,
+            s3Key: key,
+            displayName,
+            sourceUrl,
+            youtubeId,
+            uploaded: true,
+            status: "queued",
+        },
+        select: {
+            id: true,
+            userId: true,
+        },
+    });
+
+    return {
+        success: true,
+        key,
+        uploadedFileId: uploadedFileDbRecord.id,
+        userId: uploadedFileDbRecord.userId,
+    };
 }

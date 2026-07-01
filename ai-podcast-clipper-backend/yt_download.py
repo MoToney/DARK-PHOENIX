@@ -39,10 +39,10 @@ download_image = (
     .add_local_file(LOCAL_TEST_VIDEO, remote_path=SAMPLE_VIDEO_PATH)
 )
 
-app = modal.App("ai-podcast-clipper")
+app = modal.App("yt-downloader")
 
 volume = modal.Volume.from_name(
-    "ai-podcast-clipper-model-cache", create_if_missing=True
+    "yt-downloader-model-cache", create_if_missing=True
 )
 
 mount_path = "/root/.cache/torch"
@@ -129,8 +129,8 @@ def check():
 
 @app.cls(
     image=download_image, timeout=900, retries=0, scaledown_window=20,
-    secrets=[modal.Secret.from_name("ai-podcast-clipper-secret"),
-             modal.Secret.from_name("yt-cookies")],
+    secrets=[modal.Secret.from_name("yt-cookies"), modal.Secret.from_name("ai-podcast-clipper-secret")],
+    volumes={mount_path: volume},
 )
 class YouTubeDownloader:
     @modal.method()
@@ -205,7 +205,7 @@ class YouTubeDownloader:
 def main():
     import requests
 
-    web_url = "https://motoney--ai-podcast-clipper-youtubedownloader-downlo-0fdce6-dev.modal.run"
+    web_url = "https://motoney--yt-downloader-youtubedownloader-downlo-0fdce6-dev.modal.run"
 
     payload = {
         "url": SAMPLE_VIDEO_URL,

@@ -14,6 +14,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SourceType {
+  UPLOAD
+  YOUTUBE
+}
+
+enum UploadStatus {
+  PENDING
+  DOWNLOADING
+  UPLOADING
+  PROCESSING
+  COMPLETE
+  FAILED
+}
+
 model Post {
   id        Int      @id @default(autoincrement())
   name      String
@@ -72,13 +86,16 @@ model User {
 }
 
 model UploadedFile {
-  id          String   @id @default(cuid())
-  s3Key       String
+  id          String     @id @default(cuid())
+  sourceType  SourceType
+  s3Key       String?
   displayName String?
-  uploaded    Boolean  @default(false)
-  status      String   @default("queued") // processing, processed, no credits
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  sourceUrl   String?
+  youtubeId   String?
+  uploaded    Boolean    @default(false)
+  status      String     @default("queued") // processing, processed, no credits
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   clips Clip[]
 

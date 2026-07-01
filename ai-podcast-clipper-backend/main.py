@@ -9,6 +9,7 @@ import time
 import uuid
 import boto3
 import cv2
+from botocore.exceptions import ClientError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import ffmpegcv
@@ -21,18 +22,18 @@ from google import genai
 import pysubs2
 from tqdm import tqdm
 import whisperx
+import yt_dlp
 
 
 class ProcessVideoRequest(BaseModel):
     s3_key: str
-
 
 image = (modal.Image.from_registry(
     "nvidia/cuda:12.4.0-devel-ubuntu22.04", add_python="3.11")
          .apt_install(
     ["ffmpeg", "libgl1-mesa-glx", "wget", "libcudnn8", "libcudnn8-dev", "pkg-config", "libavformat-dev",
      "libavcodec-dev", "libavdevice-dev", "libavutil-dev", "libswscale-dev", "libswresample-dev", "libavfilter-dev",
-     "clang", "build-essential", "gcc", "git"])
+     "clang", "build-essential", "gcc", "git",])
          .pip_install_from_requirements("requirements.txt")
          .run_commands([
     "mkdir -p /usr/share/fonts/truetype/custom",
@@ -41,7 +42,7 @@ image = (modal.Image.from_registry(
 ])
          .add_local_dir("asd", "/asd", copy=True))
 
-app = modal.App("ai-podcast-clipper", image=image)
+app = modal.App("ai-podcast-clipper")
 
 volume = modal.Volume.from_name(
     "ai-podcast-clipper-model-cache", create_if_missing=True
@@ -323,9 +324,11 @@ def process_clip(base_dir: str, original_video_path: str, s3_key: str, start_tim
     s3_client.upload_file(
         subtitle_output_path, os.environ["S3_BUCKET_NAME"], output_s3_key)
 
-
-@app.cls(gpu="L40S", timeout=3600, retries=0, scaledown_window=20,
-         secrets=[modal.Secret.from_name("ai-podcast-clipper-secret")], volumes={mount_path: volume})
+@app.cls(
+    gpu="L40S", image=image, timeout=3600, retries=0, scaledown_window=20,
+    secrets=[modal.Secret.from_name("ai-podcast-clipper-secret")],
+    volumes={mount_path: volume},
+)
 class AiPodcastClipper:
     @modal.enter()
     def load_model(self):
@@ -478,7 +481,6 @@ class AiPodcastClipper:
         if base_dir.exists():
             print(f"Cleaning up temp dir after {base_dir}")
             shutil.rmtree(base_dir, ignore_errors=True)
-
 
 @app.local_entrypoint()
 def main():
