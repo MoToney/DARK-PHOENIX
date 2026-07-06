@@ -42,16 +42,16 @@ export const downloadYouTubeVideo = inngest.createFunction(
             }
 
             // Modal returns where it actually put the file in S3
-            const {s3_key} = (await response.json()) as { s3_key: string };
+            const { s3_key: s3Key } = (await response.json()) as { s3_key: string };
 
-            if (!s3_key) {
+            if (!s3Key) {
                 throw new Error("Modal response missing s3Key");
             }
 
             await step.run("mark-downloaded", async () => {
                 await db.uploadedFile.update({
                     where: {id: uploadedFileId},
-                    data: {uploaded: true, s3Key: s3_key},
+                    data: {uploaded: true, s3Key: s3Key, status: "downloaded"},
                 });
             });
 
@@ -65,7 +65,7 @@ export const downloadYouTubeVideo = inngest.createFunction(
 
             await db.uploadedFile.update({
                 where: {id: uploadedFileId},
-                data: {status: "failed"},
+                data: {status: "download_failed"},
             });
 
             throw error;

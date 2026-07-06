@@ -19,8 +19,8 @@ class DownloadYouTubeVideoRequest(BaseModel):
 
 SAMPLE_VIDEO_URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
 
-LOCAL_TEST_VIDEO = "./sample.mp4"
-SAMPLE_VIDEO_PATH = "/opt/sample.mp4"
+LOCAL_TEST_VIDEO = "./tesla.mp4"
+SAMPLE_VIDEO_PATH = "/opt/tesla.mp4"
 
 download_image = (
     modal.Image.debian_slim()
@@ -174,7 +174,7 @@ class YouTubeDownloader:
             except RuntimeError as e:
                 raise HTTPException(status_code=502, detail=str(e))
 
-        s3_key = f"{request.uploadedFileId}/original.mp4"
+        s3_key = f"{request.url}"
         s3_client = boto3.client("s3")
 
         try:

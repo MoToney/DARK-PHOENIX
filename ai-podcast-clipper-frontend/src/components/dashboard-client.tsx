@@ -29,7 +29,8 @@ import {Badge} from "./ui/badge";
 import {useRouter} from "next/navigation";
 import {ClipDisplay} from "./clip-display";
 import {YoutubeForm} from "~/components/youtube-form";
-import {downloadYouTubeVideo} from "~/actions/ingestion";
+import {downloadYouTubeVideo} from "~/actions/download";
+import {clientEnv} from "~/lib/clientEnv";
 
 
 export function DashboardClient({
@@ -135,6 +136,7 @@ export function DashboardClient({
         }
     };
 
+    console.log("NODE_ENV:", clientEnv.nodeEnv);
 
     return (
         <div className="mx-auto flex max-w-5xl flex-col space-y-6 px-4 py-8">
@@ -262,6 +264,12 @@ export function DashboardClient({
                                                             {new Date(item.createdAt).toLocaleDateString()}
                                                         </TableCell>
                                                         <TableCell>
+                                                            {item.status === "downloading" && (
+                                                                <Badge variant="outline">Downloading</Badge>
+                                                            )}
+                                                            {item.status === "downloaded" && (
+                                                                <Badge variant="outline">Downloaded</Badge>
+                                                            )}
                                                             {item.status === "queued" && (
                                                                 <Badge variant="outline">Queued</Badge>
                                                             )}
@@ -276,6 +284,9 @@ export function DashboardClient({
                                                             )}
                                                             {item.status === "failed" && (
                                                                 <Badge variant="destructive">Failed</Badge>
+                                                            )}
+                                                            {item.status === "download_failed" && (
+                                                                <Badge variant="destructive">Failed to Download</Badge>
                                                             )}
                                                         </TableCell>
                                                         <TableCell>
