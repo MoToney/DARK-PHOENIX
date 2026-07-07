@@ -23,7 +23,8 @@ export async function downloadYouTubeVideo(url: string) {
         const response = await fetch(
             `https://noembed.com/embed?url=${encodeURIComponent(url)}&format=json`
         );
-        const data = await response.json();
+        const data = (await response.json()) as { title?: string };
+
         title = data.title ?? null;
     } catch (error) {
         console.error("Error fetching data:", error);

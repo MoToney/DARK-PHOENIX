@@ -30,7 +30,6 @@ const youtubeSchema = z.object({
 type YoutubeFormValues = z.infer<typeof youtubeSchema>;
 
 type YoutubeFormProps = {
-    // @ts-ignore
     onSubmit: (url: string) => Promise<void>;
     isSubmitting: boolean;
     className?: string;
