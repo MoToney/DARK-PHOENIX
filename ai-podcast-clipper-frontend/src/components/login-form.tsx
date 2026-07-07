@@ -23,7 +23,7 @@ import {
   type SignupFormValues,
 } from "~/schemas/auth";
 import { signUp } from "~/actions/auth";
-import { signIn } from "~/server/auth";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 export function LoginForm({
