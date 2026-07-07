@@ -7,7 +7,9 @@ export function extractYouTubeId(url: string): string | null {
             if (parsed.searchParams.has("v")) {
                 return parsed.searchParams.get("v");
             }
-            const match = parsed.pathname.match(/^\/(shorts|embed|live)\/([^/?]+)/);
+            const regex = /^\/(shorts|embed|live)\/([^/?]+)/;
+            const match = regex.exec(parsed.pathname);
+            
             if (match) {
                 return match[2] ?? null;
             }

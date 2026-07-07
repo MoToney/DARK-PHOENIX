@@ -3,7 +3,7 @@
 import { auth } from "~/server/auth";
 import { inngest } from "~/inngest/client";
 import { db } from "~/server/db";
-import { extractYouTubeId, validateYouTubeUrl } from "~/lib/youtube";
+import { validateYouTubeUrl } from "~/lib/youtube";
 import { revalidatePath } from "next/cache";
 import { SourceType } from "@prisma/client";
 
