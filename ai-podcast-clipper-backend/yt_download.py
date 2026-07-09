@@ -56,7 +56,7 @@ def simulated_download() -> str:
     return dest
 
 
-def download(url: str, low_quality=True) -> str:
+def download(url: str, low_quality=False) -> str:
     output_template = "/tmp/%(id)s.%(ext)s"
     deno_path = os.popen("which deno").read().strip()
 

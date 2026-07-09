@@ -44,9 +44,6 @@ export function YoutubeForm({onSubmit, isSubmitting, className}: YoutubeFormProp
         reset,
         formState: {errors},
     } = useForm<YoutubeFormValues>({
-        defaultValues: {
-        url: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
-    },
         resolver: zodResolver(youtubeSchema),
     });
 
