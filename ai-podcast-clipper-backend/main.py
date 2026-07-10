@@ -441,46 +441,76 @@ class AiPodcastClipper:
         base_dir = pathlib.Path("/tmp") / run_id
         base_dir.mkdir(parents=True, exist_ok=True)
 
-        # Download video file
-        video_path = base_dir / "input.mp4"
-        s3_client = boto3.client("s3")
-        s3_client.download_file(os.environ["S3_BUCKET_NAME"], s3_key, str(video_path))
-
-        # 1. Transcription
-        transcript_segments_json = self.transcribe_video(base_dir, video_path)
-        transcript_segments = json.loads(transcript_segments_json)
-
-        # 2. Identify moments for clips
-        print("Identifying clip moments")
-        identified_moments_raw = self.identify_moments(transcript_segments)
-
-        cleaned_json_string = identified_moments_raw.strip()
-
-        cleaned_json_string = re.sub(r"^```json", "", cleaned_json_string)
-        cleaned_json_string = re.sub(r"```$", "", cleaned_json_string)
-        cleaned_json_string = cleaned_json_string.strip()
-
         try:
-            clip_moments = json.loads(cleaned_json_string)
 
-        except json.JSONDecodeError:
-            print("Failed JSON:")
-            print(cleaned_json_string[-2000:])
-            raise
+            video_path = base_dir / "input.mp4"
+            s3_client = boto3.client("s3")
+            try:
+                s3_client.download_file(os.environ["S3_BUCKET_NAME"], s3_key, str(video_path))
+            except ClientError as e:
+                raise HTTPException(status_code=502, detail=f"Failed to download {s3_key} from S3: {e}")
 
-        print(clip_moments)
 
-        # 3. Process clips
-        for index, moment in enumerate(clip_moments[:5]):
-            if "start" in moment and "end" in moment:
-                print("Processing clip" + str(index) + " from " +
-                      str(moment["start"]) + " to " + str(moment["end"]))
-                process_clip(base_dir, video_path, s3_key,
-                             moment["start"], moment["end"], index, transcript_segments)
+            try:
+                transcript_segments_json = self.transcribe_video(base_dir, video_path)
+                transcript_segments = json.loads(transcript_segments_json)
+            except subprocess.CalledProcessError as e:
+                raise HTTPException(status_code=500, detail=f"Audio extraction failed: {e}")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
 
-        if base_dir.exists():
-            print(f"Cleaning up temp dir after {base_dir}")
-            shutil.rmtree(base_dir, ignore_errors=True)
+
+            print("Identifying clip moments")
+            try:
+                identified_moments_raw = self.identify_moments(transcript_segments)
+            except Exception as e:
+                raise HTTPException(status_code=502, detail=f"Gemini moment identification failed: {e}")
+
+            cleaned_json_string = identified_moments_raw.strip()
+            cleaned_json_string = re.sub(r"^```json", "", cleaned_json_string)
+            cleaned_json_string = re.sub(r"```$", "", cleaned_json_string)
+            cleaned_json_string = cleaned_json_string.strip()
+
+            try:
+                clip_moments = json.loads(cleaned_json_string)
+            except json.JSONDecodeError as e:
+                print("Failed JSON:")
+                print(cleaned_json_string[-2000:])
+                raise HTTPException(status_code=502, detail=f"Gemini returned malformed JSON: {e}")
+
+            print(clip_moments)
+
+
+            clips_succeeded = 0
+            for index, moment in enumerate(clip_moments[:5]):
+                if "start" in moment and "end" in moment:
+                    print("Processing clip" + str(index) + " from " +
+                          str(moment["start"]) + " to " + str(moment["end"]))
+                    try:
+                        process_clip(base_dir, video_path, s3_key,
+                                     moment["start"], moment["end"], index, transcript_segments)
+                        clips_succeeded += 1
+                    except subprocess.CalledProcessError as e:
+                        print(f"Clip {index} ffmpeg/talknet step failed: {e}")
+                        continue
+                    except FileNotFoundError as e:
+                        print(f"Clip {index} missing tracks/scores: {e}")
+                        continue
+                    except ClientError as e:
+                        print(f"Clip {index} S3 upload failed: {e}")
+                        continue
+
+            return {
+                "message": "processing complete",
+                "s3_key": s3_key,
+                "clips_found": len(clip_moments),
+                "clips_succeeded": clips_succeeded,
+            }
+
+        finally:
+            if base_dir.exists():
+                print(f"Cleaning up temp dir after {base_dir}")
+                shutil.rmtree(base_dir, ignore_errors=True)
 
 @app.local_entrypoint()
 def main():
