@@ -13,6 +13,28 @@ export async function downloadYouTubeVideo(url: string) {
         throw new Error("Unauthorized");
     }
 
+    if (!session?.user?.email) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    const user = await db.user.findUnique({
+      where: {
+        email: session.user.email,
+      },
+    });
+
+    if (!user) {
+      return new Response("User not found", { status: 404 });
+    }
+
+    if (!user.approved) {
+      return new Response(
+        "Your account is awaiting approval.",
+        { status: 403 }
+      );
+    }
+
+
     const { valid, videoId } = validateYouTubeUrl(url);
     if (!valid || !videoId) {
         throw new Error("Invalid YouTube URL");
