@@ -29,18 +29,6 @@ enum UploadStatus {
   FAILED
 }
 
-model Post {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  createdBy   User   @relation(fields: [createdById], references: [id])
-  createdById String
-
-  @@index([name])
-}
-
 // Necessary for Next auth
 model Account {
   id                       String  @id @default(cuid())
@@ -75,12 +63,12 @@ model User {
   email            String    @unique
   emailVerified    DateTime?
   password         String
+  approved         Boolean   @default(false)
   credits          Int       @default(10)
   stripeCustomerId String?   @unique
   image            String?
   accounts         Account[]
   sessions         Session[]
-  posts            Post[]
 
   uploadedFiles UploadedFile[]
   clips         Clip[]

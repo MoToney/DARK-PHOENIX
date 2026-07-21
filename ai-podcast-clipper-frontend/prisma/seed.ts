@@ -43,6 +43,7 @@ async function main() {
             email,
             password: hashedPassword,
             stripeCustomerId,
+            approved: true,
         },
     });
 
